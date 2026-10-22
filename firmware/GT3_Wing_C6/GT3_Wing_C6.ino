@@ -52,13 +52,20 @@ bool oldDeviceConnected = false;
 Preferences preferences;
 
 // ====================================================
-// PIN DEFINITIONS - ESP32-C3 Super Mini
+// PIN DEFINITIONS - Seeed XIAO ESP32-C6
 // ====================================================
-#define DATA_PIN    2
-#define REVERSE_PIN 3
-#define BRAKE_PIN   4
-#define LEFT_PIN    5
-#define RIGHT_PIN   6
+// Use the silkscreen D-labels; the XIAO_ESP32C6 board package maps them.
+// Do NOT use GPIO3 (RF switch power) or GPIO14 (antenna select).
+#define DATA_PIN    D8   // GPIO19
+#define REVERSE_PIN D9   // GPIO20
+#define BRAKE_PIN   D10  // GPIO18
+#define LEFT_PIN    D0   // GPIO0
+#define RIGHT_PIN   D1   // GPIO1
+
+// Antenna: 0 = onboard ceramic, 1 = external U.FL antenna
+#define USE_EXTERNAL_ANTENNA 0
+#define RF_SWITCH_EN_PIN  3
+#define RF_ANT_SELECT_PIN 14
 #define SERIAL_BAUD 115200
 
 // ====================================================
@@ -800,7 +807,7 @@ void setup() {
   delay(500);
   
   Serial.println("\n\n=================================");
-  Serial.println("GT3 Wing LED Controller - ESP32-C3");
+  Serial.println("GT3 Wing LED Controller - XIAO ESP32-C6");
   Serial.println("Bluetooth LE Mode");
   Serial.println("=================================");
 
@@ -826,6 +833,13 @@ void setup() {
   uint16_t segLen = (PIXEL_COUNT >= 5) ? (PIXEL_COUNT / 5) : (PIXEL_COUNT > 1 ? PIXEL_COUNT/2 : 1);
   indLeft.configure(true, segLen);
   indRight.configure(false, segLen);
+
+  // Enable the XIAO C6 RF switch and pick the antenna before starting BLE
+  pinMode(RF_SWITCH_EN_PIN, OUTPUT);
+  digitalWrite(RF_SWITCH_EN_PIN, LOW);
+  delay(100);
+  pinMode(RF_ANT_SELECT_PIN, OUTPUT);
+  digitalWrite(RF_ANT_SELECT_PIN, USE_EXTERNAL_ANTENNA ? HIGH : LOW);
 
   // Initialize BLE
   BLEDevice::init("GT3_Wing");

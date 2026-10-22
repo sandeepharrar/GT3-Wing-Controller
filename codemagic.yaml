@@ -1,0 +1,47 @@
+# Codemagic cloud build: archives the app on a Mac in the cloud and uploads it to TestFlight.
+# One-time setup steps are in ios/CODEMAGIC_SETUP.md.
+workflows:
+  ios-testflight:
+    name: iOS TestFlight
+    instance_type: mac_mini_m2
+    max_build_duration: 30
+    integrations:
+      # Must match the name you give the App Store Connect API key in Codemagic
+      app_store_connect: GT3 Wing ASC Key
+    environment:
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.sandeep.GT3-Wing-Controller
+      xcode: latest
+    when:
+      changeset:
+        includes:
+          - 'ios/'
+          - 'codemagic.yaml'
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: main
+          include: true
+      cancel_previous_builds: true
+    scripts:
+      - name: Apply signing profiles
+        script: |
+          cd ios
+          xcode-project use-profiles
+      - name: Build ipa
+        script: |
+          cd ios
+          # Codemagic's BUILD_NUMBER goes up on every build, so each TestFlight upload gets a new build number
+          xcode-project build-ipa \
+            --project "GT3 Wing Controller.xcodeproj" \
+            --scheme "GT3 Wing Controller" \
+            --archive-xcargs "CURRENT_PROJECT_VERSION=$BUILD_NUMBER"
+    artifacts:
+      - ios/build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true
