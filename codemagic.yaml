@@ -33,11 +33,13 @@ workflows:
       - name: Build ipa
         script: |
           cd ios
-          # Codemagic's BUILD_NUMBER goes up on every build, so each TestFlight upload gets a new build number
+          # Date-time build number (e.g. 20261023.1727) so every TestFlight upload is unique and always goes up
+          BUILD_VERSION="$(date -u +%Y%m%d).$(date -u +%H%M)"
+          echo "Build number: $BUILD_VERSION"
           xcode-project build-ipa \
             --project "GT3 Wing Controller.xcodeproj" \
             --scheme "GT3 Wing Controller" \
-            --archive-xcargs "CURRENT_PROJECT_VERSION=$BUILD_NUMBER"
+            --archive-xcargs "CURRENT_PROJECT_VERSION=$BUILD_VERSION"
     artifacts:
       - ios/build/ios/ipa/*.ipa
       - /tmp/xcodebuild_logs/*.log
