@@ -7,6 +7,8 @@ class BluetoothManager: NSObject, ObservableObject {
     @Published var isScanning = false
     @Published var discoveredDevices: [CBPeripheral] = []
     @Published var isBluetoothReady = false
+    // Preview mode lets the UI be browsed without a wing; nothing is sent over BLE
+    @Published var isPreviewMode = false
     
     // Synced values from ESP32
     @Published var currentBrightness: Double = 75
@@ -117,6 +119,19 @@ class BluetoothManager: NSObject, ObservableObject {
         if let peripheral = gt3Peripheral {
             centralManager.cancelPeripheralConnection(peripheral)
         }
+    }
+    
+    func enterPreviewMode() {
+        print("👀 Entering preview mode")
+        if isScanning {
+            stopScan()
+        }
+        isPreviewMode = true
+    }
+    
+    func exitPreviewMode() {
+        print("👀 Exiting preview mode")
+        isPreviewMode = false
     }
     
     // Read current values from ESP32
@@ -301,6 +316,7 @@ extension BluetoothManager: CBCentralManagerDelegate {
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
         print("✅ Connected to: \(peripheral.name ?? "device")")
         DispatchQueue.main.async {
+            self.isPreviewMode = false
             self.isConnected = true
         }
         peripheral.discoverServices([serviceUUID])
