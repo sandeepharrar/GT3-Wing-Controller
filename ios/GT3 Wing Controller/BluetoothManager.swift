@@ -14,6 +14,16 @@ class BluetoothManager: NSObject, ObservableObject {
     @Published var currentBrightness: Double = 75
     @Published var currentRunning: Double = 30
     
+    // Values the ESP32 boots with. The first values read after connecting are the
+    // saved defaults (the firmware loads them at boot and only changes them on save)
+    @Published var savedBrightness: Double?
+    @Published var savedRunning: Double?
+    
+    var hasUnsavedChanges: Bool {
+        guard let brightness = savedBrightness, let running = savedRunning else { return false }
+        return Int(currentBrightness) != Int(brightness) || Int(currentRunning) != Int(running)
+    }
+    
     private var centralManager: CBCentralManager!
     private var gt3Peripheral: CBPeripheral?
     
@@ -126,6 +136,8 @@ class BluetoothManager: NSObject, ObservableObject {
         if isScanning {
             stopScan()
         }
+        savedBrightness = currentBrightness
+        savedRunning = currentRunning
         isPreviewMode = true
     }
     
@@ -202,12 +214,19 @@ class BluetoothManager: NSObject, ObservableObject {
     
     func saveAsDefault() {
         print("📤 saveAsDefault called")
+        if isPreviewMode {
+            savedBrightness = currentBrightness
+            savedRunning = currentRunning
+            return
+        }
         guard let char = charSaveDefault else {
             print("❌ charSaveDefault is nil!")
             return
         }
         let data = Data([1])
         gt3Peripheral?.writeValue(data, for: char, type: .withResponse)
+        savedBrightness = currentBrightness
+        savedRunning = currentRunning
         print("📤 Triggered save defaults")
     }
     
@@ -317,6 +336,8 @@ extension BluetoothManager: CBCentralManagerDelegate {
         print("✅ Connected to: \(peripheral.name ?? "device")")
         DispatchQueue.main.async {
             self.isPreviewMode = false
+            self.savedBrightness = nil
+            self.savedRunning = nil
             self.isConnected = true
         }
         peripheral.discoverServices([serviceUUID])
@@ -456,6 +477,9 @@ extension BluetoothManager: CBPeripheralDelegate {
             let percentage = (Double(value) / 255.0) * 100.0
             DispatchQueue.main.async {
                 self.currentBrightness = percentage
+                if self.savedBrightness == nil {
+                    self.savedBrightness = percentage
+                }
                 print("📥 Received brightness: \(value) (\(Int(percentage))%)")
             }
         }
@@ -463,6 +487,9 @@ extension BluetoothManager: CBPeripheralDelegate {
         else if characteristic.uuid == charRunningUUID, let value = data.first {
             DispatchQueue.main.async {
                 self.currentRunning = Double(value)
+                if self.savedRunning == nil {
+                    self.savedRunning = Double(value)
+                }
                 print("📥 Received running: \(value)%")
             }
         }

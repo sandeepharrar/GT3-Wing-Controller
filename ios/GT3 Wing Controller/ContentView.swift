@@ -168,7 +168,10 @@ struct MainControlView: View {
                 brightnessControl
                 runningControl
                 
-                saveDefaultButton
+                if bluetooth.hasUnsavedChanges {
+                    saveDefaultButton
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                }
                 
                 overrideButton
                 
@@ -187,6 +190,7 @@ struct MainControlView: View {
                 .padding(.bottom, 8)
             }
             .padding()
+            .animation(.easeInOut(duration: 0.2), value: bluetooth.hasUnsavedChanges)
         }
         .sheet(isPresented: $showingOverride) {
             OverrideControlView()
