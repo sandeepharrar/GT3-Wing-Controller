@@ -14,14 +14,16 @@ class BluetoothManager: NSObject, ObservableObject {
     @Published var currentBrightness: Double = 75
     @Published var currentRunning: Double = 30
     
-    // Values the ESP32 boots with. The first values read after connecting are the
-    // saved defaults (the firmware loads them at boot and only changes them on save)
+    // Values the ESP32 boots with, reported by the saved-values characteristic.
+    // Older firmware without it: fall back to the first values read after connecting
     @Published var savedBrightness: Double?
     @Published var savedRunning: Double?
     
     var hasUnsavedChanges: Bool {
         guard let brightness = savedBrightness, let running = savedRunning else { return false }
-        return Int(currentBrightness) != Int(brightness) || Int(currentRunning) != Int(running)
+        // Compare in 5% slider steps; the factory brightness (150/255 = 58.8%) sits between steps
+        func step(_ value: Double) -> Int { Int((value / 5).rounded()) }
+        return step(currentBrightness) != step(brightness) || step(currentRunning) != step(running)
     }
     
     private var centralManager: CBCentralManager!
@@ -43,6 +45,7 @@ class BluetoothManager: NSObject, ObservableObject {
     private var charEffectBrightness: CBCharacteristic?
     private var charPoliceSegments: CBCharacteristic?
     private var charChaseWidth: CBCharacteristic?
+    private var charSavedValues: CBCharacteristic?
     
     private let serviceUUID = CBUUID(string: "4fafc201-1fb5-459e-8fcc-c5c9c331914b")
     private let charModeUUID = CBUUID(string: "beb5483e-36e1-4688-b7f5-ea07361b26a8")
@@ -61,6 +64,7 @@ class BluetoothManager: NSObject, ObservableObject {
     private let charEffectBrightnessUUID = CBUUID(string: "beb5484b-36e1-4688-b7f5-ea07361b26a8")
     private let charPoliceSegmentsUUID = CBUUID(string: "beb5484c-36e1-4688-b7f5-ea07361b26a8")
     private let charChaseWidthUUID = CBUUID(string: "beb5484d-36e1-4688-b7f5-ea07361b26a8")
+    private let charSavedValuesUUID = CBUUID(string: "beb5484e-36e1-4688-b7f5-ea07361b26a8")
     
     override init() {
         super.init()
@@ -153,6 +157,9 @@ class BluetoothManager: NSObject, ObservableObject {
             gt3Peripheral?.readValue(for: char)
         }
         if let char = charRunning {
+            gt3Peripheral?.readValue(for: char)
+        }
+        if let char = charSavedValues {
             gt3Peripheral?.readValue(for: char)
         }
     }
@@ -338,6 +345,7 @@ extension BluetoothManager: CBCentralManagerDelegate {
             self.isPreviewMode = false
             self.savedBrightness = nil
             self.savedRunning = nil
+            self.charSavedValues = nil
             self.isConnected = true
         }
         peripheral.discoverServices([serviceUUID])
@@ -451,6 +459,10 @@ extension BluetoothManager: CBPeripheralDelegate {
             case charChaseWidthUUID:
                 charChaseWidth = char
                 print("  ✅ Chase Width")
+            case charSavedValuesUUID:
+                charSavedValues = char
+                peripheral.setNotifyValue(true, for: char)
+                print("  ✅ Saved Values (notify enabled)")
             default:
                 break
             }
@@ -477,7 +489,7 @@ extension BluetoothManager: CBPeripheralDelegate {
             let percentage = (Double(value) / 255.0) * 100.0
             DispatchQueue.main.async {
                 self.currentBrightness = percentage
-                if self.savedBrightness == nil {
+                if self.savedBrightness == nil && self.charSavedValues == nil {
                     self.savedBrightness = percentage
                 }
                 print("📥 Received brightness: \(value) (\(Int(percentage))%)")
@@ -487,10 +499,20 @@ extension BluetoothManager: CBPeripheralDelegate {
         else if characteristic.uuid == charRunningUUID, let value = data.first {
             DispatchQueue.main.async {
                 self.currentRunning = Double(value)
-                if self.savedRunning == nil {
+                if self.savedRunning == nil && self.charSavedValues == nil {
                     self.savedRunning = Double(value)
                 }
                 print("📥 Received running: \(value)%")
+            }
+        }
+        // Handle saved defaults [brightness 0-255, running %]
+        else if characteristic.uuid == charSavedValuesUUID, data.count >= 2 {
+            let brightness = (Double(data[0]) / 255.0) * 100.0
+            let running = Double(data[1])
+            DispatchQueue.main.async {
+                self.savedBrightness = brightness
+                self.savedRunning = running
+                print("📥 Received saved defaults: \(data[0]), \(data[1])%")
             }
         }
     }
