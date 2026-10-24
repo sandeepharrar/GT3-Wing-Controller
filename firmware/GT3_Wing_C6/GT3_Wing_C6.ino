@@ -26,6 +26,7 @@
 #define CHAR_EFFECT_BRIGHTNESS_UUID "beb5484b-36e1-4688-b7f5-ea07361b26a8"
 #define CHAR_POLICE_SEGMENTS_UUID "beb5484c-36e1-4688-b7f5-ea07361b26a8"
 #define CHAR_CHASE_WIDTH_UUID "beb5484d-36e1-4688-b7f5-ea07361b26a8"
+#define CHAR_SAVED_VALUES_UUID "beb5484e-36e1-4688-b7f5-ea07361b26a8"
 
 BLEServer* pServer = NULL;
 BLECharacteristic* pCharMode = NULL;
@@ -36,6 +37,7 @@ BLECharacteristic* pCharSpeed = NULL;
 BLECharacteristic* pCharOverride = NULL;
 BLECharacteristic* pCharAnimation = NULL;
 BLECharacteristic* pCharSaveDefault = NULL;
+BLECharacteristic* pCharSavedValues = NULL;
 BLECharacteristic* pCharManualBrake = NULL;
 BLECharacteristic* pCharManualLeft = NULL;
 BLECharacteristic* pCharManualRight = NULL;
@@ -87,6 +89,10 @@ uint8_t  globalBrightness = 150;
 const uint8_t  DOT_BRIGHTNESS = 110;
 const uint8_t  MAX_RED        = 150;
 uint8_t  runningBrightness    = 30;
+
+// Values stored in flash (what the wing boots with), reported to the app
+uint8_t savedBrightness = 150;
+uint8_t savedRunning    = 30;
 const uint8_t  REVERSE_WHITE  = 150;
 
 uint8_t customR = 255, customG = 0, customB = 0;
@@ -117,11 +123,21 @@ bool manualHazards = false;
 // ====================================================
 // EEPROM FUNCTIONS
 // ====================================================
+// Sends [savedBrightness, savedRunning] so the app knows the stored defaults
+void publishSavedValues(bool notify) {
+  if (!pCharSavedValues) return;
+  uint8_t saved[2] = { savedBrightness, savedRunning };
+  pCharSavedValues->setValue(saved, 2);
+  if (notify) pCharSavedValues->notify();
+}
+
 void loadDefaults() {
   preferences.begin("gt3wing", false);
   globalBrightness = preferences.getUChar("brightness", 150);
   runningBrightness = preferences.getUChar("running", 30);
   preferences.end();
+  savedBrightness = globalBrightness;
+  savedRunning = runningBrightness;
   
   Serial.println("=================================");
   Serial.println("Loaded defaults from storage:");
@@ -135,6 +151,9 @@ void saveDefaults() {
   preferences.putUChar("brightness", globalBrightness);
   preferences.putUChar("running", runningBrightness);
   preferences.end();
+  savedBrightness = globalBrightness;
+  savedRunning = runningBrightness;
+  publishSavedValues(true);
   
   Serial.println("=================================");
   Serial.println("Saved new defaults to storage:");
@@ -630,6 +649,7 @@ class ServerCallbacks: public BLEServerCallbacks {
       pCharRunning->setValue(&runningBrightness, 1);
       pCharRunning->notify();
     }
+    publishSavedValues(true);
   }
 
   void onDisconnect(BLEServer* pServer) {
@@ -784,6 +804,14 @@ class CharCallbacks: public BLECharacteristicCallbacks {
       Serial.print("BLE: Read Running = ");
       Serial.println(runningBrightness);
     }
+    // Return saved defaults
+    else if (uuid == CHAR_SAVED_VALUES_UUID) {
+      publishSavedValues(false);
+      Serial.print("BLE: Read Saved = ");
+      Serial.print(savedBrightness);
+      Serial.print(", ");
+      Serial.println(savedRunning);
+    }
   }
 };
 
@@ -846,7 +874,8 @@ void setup() {
   pServer = BLEDevice::createServer();
   pServer->setCallbacks(new ServerCallbacks());
 
-  BLEService *pService = pServer->createService(SERVICE_UUID);
+  // 17 characteristics need ~40 attribute handles; the default of 15 is too few
+  BLEService *pService = pServer->createService(BLEUUID(SERVICE_UUID), 64);
 
   // Create characteristics with READ and WRITE
   pCharMode = pService->createCharacteristic(
@@ -947,6 +976,14 @@ void setup() {
     BLECharacteristic::PROPERTY_WRITE
   );
   pCharChaseWidth->setCallbacks(new CharCallbacks());
+
+  pCharSavedValues = pService->createCharacteristic(
+    CHAR_SAVED_VALUES_UUID,
+    BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_NOTIFY
+  );
+  pCharSavedValues->setCallbacks(new CharCallbacks());
+  pCharSavedValues->addDescriptor(new BLE2902());
+  publishSavedValues(false);
 
   pService->start();
 

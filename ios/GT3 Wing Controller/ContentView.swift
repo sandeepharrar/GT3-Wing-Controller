@@ -168,7 +168,10 @@ struct MainControlView: View {
                 brightnessControl
                 runningControl
                 
-                saveDefaultButton
+                if bluetooth.hasUnsavedChanges {
+                    saveDefaultButton
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                }
                 
                 overrideButton
                 
@@ -187,6 +190,7 @@ struct MainControlView: View {
                 .padding(.bottom, 8)
             }
             .padding()
+            .animation(.easeInOut(duration: 0.2), value: bluetooth.hasUnsavedChanges)
         }
         .sheet(isPresented: $showingOverride) {
             OverrideControlView()
@@ -205,7 +209,7 @@ struct MainControlView: View {
                         .font(.subheadline)
                         .foregroundColor(bluetooth.isPreviewMode ? .orange : .secondary)
                     if bluetooth.isPreviewMode {
-                        Text("Preview mode - changes are not sent")
+                        Text("Preview mode")
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
@@ -351,7 +355,7 @@ struct PreviewBanner: View {
                     .font(.subheadline)
                     .fontWeight(.semibold)
                     .foregroundColor(.orange)
-                Text("Preview mode - changes are not sent")
+                Text("Preview mode")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
