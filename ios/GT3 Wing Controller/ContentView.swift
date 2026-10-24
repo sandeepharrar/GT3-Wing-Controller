@@ -6,7 +6,7 @@ struct ContentView: View {
     var body: some View {
         NavigationView {
             Group {
-                if bluetooth.isConnected {
+                if bluetooth.isConnected || bluetooth.isPreviewMode {
                     MainControlView()
                         .environmentObject(bluetooth)
                 } else {
@@ -40,6 +40,8 @@ struct ConnectionView: View {
             }
             
             deviceList
+            
+            previewButton
             
             Spacer()
             
@@ -92,6 +94,24 @@ struct ConnectionView: View {
             .frame(maxWidth: .infinity)
             .padding()
             .background(Color.blue)
+            .cornerRadius(12)
+        }
+        .padding(.horizontal, 40)
+    }
+    
+    private var previewButton: some View {
+        Button(action: {
+            bluetooth.enterPreviewMode()
+        }) {
+            HStack {
+                Image(systemName: "eye")
+                Text("Preview without Wing")
+            }
+            .font(.subheadline)
+            .foregroundColor(.blue)
+            .frame(maxWidth: .infinity)
+            .padding()
+            .background(Color(.systemGray6))
             .cornerRadius(12)
         }
         .padding(.horizontal, 40)
@@ -178,21 +198,38 @@ struct MainControlView: View {
         HStack {
             HStack(spacing: 8) {
                 Circle()
-                    .fill(Color.green)
+                    .fill(bluetooth.isPreviewMode ? Color.orange : Color.green)
                     .frame(width: 10, height: 10)
-                Text("Connected")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(bluetooth.isPreviewMode ? "Wing Not Connected" : "Connected")
+                        .font(.subheadline)
+                        .foregroundColor(bluetooth.isPreviewMode ? .orange : .secondary)
+                    if bluetooth.isPreviewMode {
+                        Text("Preview mode - changes are not sent")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
             }
             
             Spacer()
             
-            Button(action: {
-                bluetooth.disconnect()
-            }) {
-                Text("Disconnect")
-                    .font(.subheadline)
-                    .foregroundColor(.red)
+            if bluetooth.isPreviewMode {
+                Button(action: {
+                    bluetooth.exitPreviewMode()
+                }) {
+                    Text("Connect")
+                        .font(.subheadline)
+                        .foregroundColor(.blue)
+                }
+            } else {
+                Button(action: {
+                    bluetooth.disconnect()
+                }) {
+                    Text("Disconnect")
+                        .font(.subheadline)
+                        .foregroundColor(.red)
+                }
             }
         }
         .padding()
@@ -303,6 +340,29 @@ struct MainControlView: View {
     }
 }
 
+// MARK: - Preview Banner
+struct PreviewBanner: View {
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "antenna.radiowaves.left.and.right.slash")
+                .foregroundColor(.orange)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Wing Not Connected")
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.orange)
+                Text("Preview mode - changes are not sent")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            Spacer()
+        }
+        .padding()
+        .background(Color.orange.opacity(0.15))
+        .cornerRadius(10)
+    }
+}
+
 // MARK: - Override Control View (Advanced Controls)
 struct OverrideControlView: View {
     @EnvironmentObject var bluetooth: BluetoothManager
@@ -329,6 +389,10 @@ struct OverrideControlView: View {
         NavigationView {
             ScrollView {
                 VStack(spacing: 20) {
+                    if bluetooth.isPreviewMode {
+                        PreviewBanner()
+                    }
+                    
                     overrideToggle
                     
                     if overrideEnabled {
