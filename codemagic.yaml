@@ -46,4 +46,6 @@ workflows:
     publishing:
       app_store_connect:
         auth: integration
-        submit_to_testflight: true
+        # Internal testers (you) get every upload without Apple's beta review.
+        # Set to true only if you add external testers.
+        submit_to_testflight: false
