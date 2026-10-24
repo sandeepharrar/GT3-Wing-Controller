@@ -205,7 +205,7 @@ struct MainControlView: View {
                         .font(.subheadline)
                         .foregroundColor(bluetooth.isPreviewMode ? .orange : .secondary)
                     if bluetooth.isPreviewMode {
-                        Text("Preview mode - changes are not sent")
+                        Text("Preview mode")
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
@@ -351,7 +351,7 @@ struct PreviewBanner: View {
                     .font(.subheadline)
                     .fontWeight(.semibold)
                     .foregroundColor(.orange)
-                Text("Preview mode - changes are not sent")
+                Text("Preview mode")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
